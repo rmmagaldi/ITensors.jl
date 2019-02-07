@@ -1,21 +1,21 @@
 
-mutable struct MPS
+mutable struct MPS{T<:TensorStorage}
   N_::Int
-  A_::Vector{ITensor}
+  A_::Vector{ITensor{T}}
   llim_::Int
   rlim_::Int
 
-  MPS() = new(0,Vector{ITensor}(),0,0)
+  MPS() = new{Dense{Float64}}(0,Vector{ITensor{Dense{Float64}}}(),0,0)
 
-  function MPS(N::Int, A::Vector{ITensor}, llim::Int, rlim::Int)
-    new(N,A,llim,rlim)
+  function MPS(N::Int, A::Vector{ITensor{T}}, llim::Int, rlim::Int) where {T<:TensorStorage}
+    new{T}(N,A,llim,rlim)
   end
-  
 
-  function MPS(sites::SiteSet)
-    N = length(sites)
-    new(N,fill(ITensor(),N),0,N+1)
-  end
+end
+
+function MPS(sites::SiteSet)
+  N = length(sites)
+  MPS(N,fill(ITensor(Float64),N),0,N+1)
 end
 
 length(m::MPS) = m.N_
