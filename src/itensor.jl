@@ -1,10 +1,10 @@
 
-struct ITensor
+struct ITensor{T<:TensorStorage}
   inds::IndexSet
-  store::TensorStorage
+  store::T
   #TODO: check that the storage is consistent with the
   #total dimension of the indices
-  ITensor(is::IndexSet,st::TensorStorage) = new(is,st)
+  ITensor(is::IndexSet,st::T) where {T<:TensorStorage} = new{T}(is,st)
 end
 
 function ITensor(::Type{T},inds::IndexSet) where {T<:Number}
