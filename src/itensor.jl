@@ -63,8 +63,8 @@ function getindex(T::ITensor,ivs::IndexVal...)
   return getindex(T,vals...)
 end
 
-setindex!(T::ITensor,x::Number,vals::Int...) = storage_setindex!(store(T),inds(T),x,vals...)
-function setindex!(T::ITensor,x::Number,ivs::IndexVal...)
+setindex!(T::ITensor,x,vals::Int...) = storage_setindex!(store(T),inds(T),x,vals...)
+function setindex!(T::ITensor,x,ivs::IndexVal...)
   p = calculate_permutation(inds(T),ivs)
   vals = val.(ivs)[p]
   return setindex!(T,x,vals...)

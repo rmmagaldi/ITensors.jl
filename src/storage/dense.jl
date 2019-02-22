@@ -26,7 +26,7 @@ function storage_getindex(Tstore::Dense{T},
   return getindex(reshape(data(Tstore),dims(Tis)),vals...)
 end
 
-function storage_setindex!(Tstore::Dense,Tis::IndexSet,x::Number,vals::Int...)
+function storage_setindex!(Tstore::Dense,Tis::IndexSet,x,vals::Int...)
   return setindex!(reshape(data(Tstore),dims(Tis)),x,vals...)
 end
 
