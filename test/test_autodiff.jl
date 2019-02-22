@@ -1,15 +1,10 @@
 using ITensors,
-      Random,
-      Test
-
-Random.seed!(12345)
+      Nabla
 
 include("2d_classical_ising.jl")
 include("trg.jl")
 
-@testset "trg" begin
-  # Make Ising model MPO
-  β = 1.1*βc
+function κ(β)
   d = 2
   s = Index(d)
   l = tags(s," -> left")
@@ -20,8 +15,15 @@ include("trg.jl")
 
   χmax = 20
   nsteps = 20
-  κ,T = trg(T;χmax=χmax,nsteps=nsteps)
+  κout,T = trg(T;χmax=χmax,nsteps=nsteps)
 
-  @test κ≈exp(-β*ising_free_energy(β)) atol=1e-4
+  return κout
+end
+
+function main()
+  β = 1.1*βc
+  println(≈(κ(β),exp(-β*ising_free_energy(β)),atol=1e-4))
+
+  return ∇(κ)(β)
 end
 

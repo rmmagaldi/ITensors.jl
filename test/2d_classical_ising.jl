@@ -21,7 +21,7 @@ function ising_magnetization(β::Real)
 end
 
 function ising_mpo(sh::Tuple{Index,Index},sv::Tuple{Index,Index},
-                   β::Real,J::Real=1.0;
+                   β,J::Real=1.0;
                    sz::Bool=false,dual_lattice::Bool=true)
   d = dim(sh[1])
   T = ITensor(sh[1],sh[2],sv[1],sv[2])
@@ -31,7 +31,9 @@ function ising_mpo(sh::Tuple{Index,Index},sv::Tuple{Index,Index},
     end
     sz && (T[1,1,1,1] = -T[1,1,1,1])
     Q = [exp(β*J) exp(-β*J); exp(-β*J) exp(β*J)]
-    D,U = eigen(Symmetric(Q))
+    ## eigen not implemented in Nabla for autodiff
+    #D,U = eigen(Symmetric(Q))
+    U,D,V = svd(Q)
     √Q = U*Diagonal(sqrt.(D))*U'
     Xh1 = ITensor(vec(√Q),sh[1],sh[1]')
     Xh2 = ITensor(vec(√Q),sh[2],sh[2]')
