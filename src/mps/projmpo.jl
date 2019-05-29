@@ -3,7 +3,7 @@ mutable struct ProjMPO
   rpos::Int
   nsite::Int
   H::MPO
-  LR::Vector{ITensor}
+  LR::Vector{ITensor{Dense{Float64}}}
   ProjMPO(H::MPO) = new(0,length(H)+1,2,H,fill(ITensor(),length(H)))
 end
 
@@ -11,32 +11,37 @@ nsite(pm::ProjMPO) = pm.nsite
 length(pm::ProjMPO) = length(pm.H)
 
 
-function LProj(pm::ProjMPO)::ITensor
+function LProj(pm::ProjMPO)::ITensor{Dense{Float64}}
   (pm.lpos <= 0) && return ITensor()
   return pm.LR[pm.lpos]
 end
 
-function RProj(pm::ProjMPO)::ITensor
+function RProj(pm::ProjMPO)::ITensor{Dense{Float64}}
   (pm.rpos >= length(pm)+1) && return ITensor()
   return pm.LR[pm.rpos]
 end
 
 function product(pm::ProjMPO,
-                 v::ITensor)::ITensor
+                 v::ITensor{Dense{Float64}})::ITensor{Dense{Float64}}
   Hv = v
+  #@show Hv
   if !isNull(LProj(pm))
+    #@show LProj(pm)
     Hv *= LProj(pm)
   end
   for j=pm.lpos+1:pm.rpos-1
+    #@show pm.H[j]
     Hv *= pm.H[j]
   end
   if !isNull(RProj(pm))
+    #@show RProj(pm)
     Hv *= RProj(pm)
   end
+  #@show Hv
   return noprime(Hv)
 end
 
-(pm::ProjMPO)(v::ITensor) = product(pm,v)
+(pm::ProjMPO)(v::ITensor{Dense{Float64}}) = product(pm,v)
 
 function size(pm::ProjMPO)::Tuple{Int,Int}
   d = 1

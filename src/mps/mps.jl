@@ -1,19 +1,19 @@
 
 mutable struct MPS
   N_::Int
-  A_::Vector{ITensor}
+  A_::Vector{ITensor{Dense{Float64}}}
   llim_::Int
   rlim_::Int
 
-  MPS() = new(0,Vector{ITensor}(),0,0)
+  MPS() = new(0,Vector{ITensor{Dense{Float64}}}(),0,0)
 
-  function MPS(N::Int, A::Vector{ITensor}, llim::Int, rlim::Int)
+  function MPS(N::Int, A::Vector{ITensor{Dense{Float64}}}, llim::Int, rlim::Int)
     new(N,A,llim,rlim)
   end
   
   function MPS(sites::SiteSet)
     N = length(sites)
-    v = Vector{ITensor}(undef, N)
+    v = Vector{ITensor{Dense{Float64}}}(undef, N)
     l = [Index(1, "Link,l=$ii") for ii ∈ 1:N-1]
     for ii in 1:N
       s = sites[ii]
@@ -30,7 +30,7 @@ mutable struct MPS
 
   function MPS(::Type{T}, is::InitState) where {T}
     N = length(is)
-    its = Vector{ITensor}(undef, length(is))
+    its = Vector{ITensor{Dense{Float64}}}(undef, length(is))
     link_inds  = Vector{Index}(undef, length(is))
     for ii in 1:N
         i_is = is[ii]
@@ -56,7 +56,7 @@ mutable struct MPS
   end
 end
 MPS(N::Int, d::Int, opcode::String) = MPS(InitState(Sites(N,d), opcode))
-MPS(N::Int) = MPS(N,Vector{ITensor}(undef,N),0,N+1)
+MPS(N::Int) = MPS(N,Vector{ITensor{Dense{Float64}}}(undef,N),0,N+1)
 MPS(s::SiteSet, opcode::String) = MPS(InitState(s, opcode))
 
 length(m::MPS) = m.N_
@@ -167,7 +167,7 @@ end
 
 function replaceBond!(psi::MPS,
                       b::Int,
-                      phi::ITensor,
+                      phi::ITensor{Dense{Float64}},
                       dir::String;
                       kwargs...)
   U,S,V,u,v = svd(phi,inds(psi[b]);kwargs...)

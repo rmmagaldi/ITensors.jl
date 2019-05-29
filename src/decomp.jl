@@ -121,7 +121,7 @@ arguments provided. The following keyword arguments are recognized:
 * cutoff [Float64]
 * truncate [Bool]
 """
-function svd(A::ITensor,
+function svd(A::ITensor{Dense{Float64}},
              Linds;
              kwargs...
             )
@@ -159,7 +159,7 @@ function eigen(A::ITensor,
   #TODO: check if A is already ordered properly
   #and avoid doing this permute, since it makes a copy
   #AND/OR use svd!() to overwrite the data of A to save memory
-  A = permute(A,(Lis,Ris))
+  A = permute(A,Lis...,Ris...)
   #TODO: More of the index analysis should be moved out of storage_eigen
   Uis,Ustore,Dis,Dstore = storage_eigen(store(A),Lis,Ris,matrixtype,truncate,lefttags,righttags)
   return ITensor(Uis,Ustore),ITensor(Dis,Dstore)

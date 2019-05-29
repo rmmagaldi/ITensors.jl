@@ -18,7 +18,19 @@ IndexSet(inds::NTuple{N,Index}) where {N} = IndexSet(inds...)
 IndexSet(inds::IndexSet) = inds
 IndexSet(inds::IndexSet,i::Index) = IndexSet(inds...,i)
 IndexSet(i::Index,inds::IndexSet) = IndexSet(i,inds...)
-IndexSet(is1::IndexSet,is2::IndexSet) = IndexSet(is1...,is2...)
+function IndexSet(is1::IndexSet,is2::IndexSet)
+  N1 = length(is1)
+  N2 = length(is2)
+  N = N1+N2
+  is = IndexSet(N)
+  for ii = 1:N1
+    is[ii] = is1[ii]
+  end
+  for ii = N1+1:N
+    is[ii] = is2[ii-N1]
+  end
+  return is
+end
 IndexSet(inds::NTuple{2,IndexSet}) = IndexSet(inds...)
 
 # Convert to an Index if there is only one
@@ -241,16 +253,16 @@ function compute_contraction_labels(Ai::IndexSet,Bi::IndexSet)
 end
 
 function contract_inds(Ais::IndexSet,
-                       Aind,
+                       Aind::Vector{Int},
                        Bis::IndexSet,
-                       Bind)
+                       Bind::Vector{Int})
   ncont = 0
   for i in Aind
     if(i < 0) ncont += 1 end 
   end
   nuniq = length(Ais)+length(Bis)-2*ncont
   Cind = zeros(Int,nuniq)
-  Cis = fill(Index(),nuniq)
+  Cis = IndexSet(nuniq) #fill(Index(),nuniq)
   u = 1
   for i ∈ 1:length(Ais)
     if(Aind[i] > 0) 
@@ -266,7 +278,7 @@ function contract_inds(Ais::IndexSet,
       u += 1 
     end
   end
-  return (IndexSet(Cis...),Cind)
+  return (Cis,Cind)
 end
 
 function compute_strides(inds::IndexSet)

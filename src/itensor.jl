@@ -1,13 +1,13 @@
 
-struct ITensor
+struct ITensor{T<:TensorStorage}
   inds::IndexSet
-  store::TensorStorage
+  store::T
   #TODO: check that the storage is consistent with the
   #total dimension of the indices
-  ITensor(is::IndexSet,st::TensorStorage) = new(is,st)
+  ITensor(is::IndexSet,st::T) where {T} = new{T}(is,st)
 end
 
-ITensor() = ITensor(IndexSet(),Dense{Nothing}())
+ITensor() = ITensor(IndexSet(),Dense{Float64}())
 ITensor(is::IndexSet) = ITensor(Float64,is...)
 ITensor(inds::Index...) = ITensor(IndexSet(inds...))
 
@@ -50,7 +50,7 @@ dims(T::ITensor) = dims(inds(T))
 
 dim(T::ITensor) = dim(inds(T))
 
-isNull(T::ITensor) = (typeof(store(T)) == Dense{Nothing})
+isNull(T::ITensor) = (length(store(T)) == 0) #(typeof(store(T)) == Dense{Nothing})
 
 copy(T::ITensor) = ITensor(copy(inds(T)),copy(store(T)))
 
@@ -161,42 +161,42 @@ randomITensor(::Type{S},inds::Index...) where {S<:Number} = randomITensor(S,Inde
 randomITensor(inds) = randomITensor(Float64,IndexSet(inds))
 randomITensor(inds::Index...) = randomITensor(Float64,IndexSet(inds...))
 
-norm(T::ITensor) = storage_norm(store(T))
-dag(T::ITensor) = ITensor(storage_dag(store(T),inds(T))...)
+norm(T::ITensor{Dense{Float64}}) = storage_norm(store(T))
+dag(T::ITensor{Dense{Float64}}) = ITensor(storage_dag(store(T),inds(T))...)
 
-function permute(T::ITensor,permTinds)
+function permute(T::ITensor{Dense{Float64}},permTinds)
   permTis = IndexSet(permTinds)
   permTstore = typeof(store(T))(dim(T))
   storage_permute!(permTstore,permTis,store(T),inds(T))
   return ITensor(permTis,permTstore)
 end
-permute(T::ITensor,inds::Index...) = permute(T,IndexSet(inds...))
+permute(T::ITensor{Dense{Float64}},inds::Index...) = permute(T,IndexSet(inds...))
 
-function add!(A::ITensor,B::ITensor)
+function add!(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
   storage_add!(store(A),inds(A),store(B),inds(B))
 end
 
 #TODO: improve these using a storage_mult call
-*(A::ITensor,x::Number) = A*ITensor(x)
-*(x::Number,A::ITensor) = A*x
+*(A::ITensor{Dense{Float64}},x::Float64) = A*ITensor(x)
+*(x::Float64,A::ITensor{Dense{Float64}}) = A*x
 #TODO: make a proper element-wise division
-/(A::ITensor,x::Number) = A*ITensor(1.0/x)
+/(A::ITensor{Dense{Float64}},x::Float64) = A*ITensor(1.0/x)
 
 -(A::ITensor) = -one(eltype(A))*A
-function +(A::ITensor,B::ITensor)
-  A==B && return 2*A
+function +(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
+  #A==B && return 2*A
   C = copy(A)
   add!(C,B)
   return C
 end
--(A::ITensor,B::ITensor) = A+(-B)
+-(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}}) = A+(-B)
 
 #TODO: Add special case of A==B
 #A==B && return ITensor(norm(A)^2)
 #TODO: Add more of the contraction logic here?
 #We can move the logic of getting the integer labels,
 #etc. since they are generic for all storage types
-function *(A::ITensor,B::ITensor)
+function *(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
   (Cis,Cstore) = storage_contract(store(A),inds(A),store(B),inds(B))
   C = ITensor(Cis,Cstore)
   return C

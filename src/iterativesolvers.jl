@@ -1,12 +1,11 @@
 
 function davidson(A,
-                  phi0::ITensor;
-                  kwargs...)::Tuple{Float64,ITensor}
-
+                  phi0::ITensor{Dense{Float64}};
+                  kwargs...)
   phi = copy(phi0)
 
-  maxiter = get(kwargs,:maxiter,2)
-  miniter = get(kwargs,:maxiter,1)
+  maxiter = get(kwargs,:maxiter,3)
+  miniter = get(kwargs,:miniter,1)
   errgoal = get(kwargs,:errgoal,1E-14)
   Northo_pass = get(kwargs,:Northo_pass,2)
 
@@ -14,7 +13,7 @@ function davidson(A,
 
   nrm = norm(phi)
   if nrm < 1E-18 
-    phi = randomITensor(inds(phi))
+    randn!(phi)
     nrm = norm(phi)
   end
   phi /= nrm
@@ -26,8 +25,14 @@ function davidson(A,
     error("linear size of A and dimension of phi should match in davidson")
   end
 
-  V = ITensor[phi]
-  AV = ITensor[A(phi)]
+  V = ITensor{Dense{Float64}}[phi]
+  AV = ITensor{Dense{Float64}}[A(phi)]
+
+  #@show V
+  #@show AV
+
+  #@show inds(V[1])
+  #@show inds(AV[1])
 
   last_lambda = NaN
   lambda = dot(V[1],AV[1])
@@ -38,6 +43,7 @@ function davidson(A,
   for ni=1:actual_maxiter+1
 
     if ni > 1
+      #@show M
       F = eigen(Hermitian(M))
       lambda = F.values[1]
       u = F.vectors[:,1]
@@ -53,8 +59,8 @@ function davidson(A,
       q -= lambda*phi
       #Fix sign
       if real(u[1]) < 0
-        phi *= -1
-        q *= -1
+        phi *= -1.0
+        q *= -1.0
       end
     end
 
@@ -73,9 +79,8 @@ function davidson(A,
 
     pass = 1
     while pass <= Northo_pass
-      Vq = [dot(V[k],q) for k=1:ni]
       for k=1:ni
-        q += -Vq[k]*V[k]
+        q += -dot(V[k],q)*V[k]
       end
       qnrm = norm(q)
       if qnrm < 1E-10 #orthog failure, try randomizing

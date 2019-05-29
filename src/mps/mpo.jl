@@ -1,11 +1,11 @@
 
 struct MPO
   N_::Int
-  A_::Vector{ITensor}
+  A_::Vector{ITensor{Dense{Float64}}}
 
-  MPO() = new(0,Vector{ITensor}())
+  MPO() = new(0,Vector{ITensor{Dense{Float64}}}())
 
-  function MPO(N::Int, A::Vector{ITensor})
+  function MPO(N::Int, A::Vector{ITensor{Dense{Float64}}})
     new(N,A)
   end
   
@@ -17,7 +17,7 @@ struct MPO
   function MPO(sites::SiteSet, 
                ops::Vector{String})
     N = length(sites)
-    its = Vector{ITensor}(undef, N)
+    its = Vector{ITensor{Dense{Float64}}}(undef, N)
     links = Vector{Index}(undef, N)
     for ii in 1:N
         si = sites[ii]
@@ -49,7 +49,7 @@ end
 length(m::MPO) = m.N_
 
 getindex(m::MPO, n::Integer) = getindex(m.A_,n)
-setindex!(m::MPO,T::ITensor,n::Integer) = setindex!(m.A_,T,n)
+setindex!(m::MPO,T::ITensor{Dense{Float64}},n::Integer) = setindex!(m.A_,T,n)
 
 copy(m::MPO) = MPO(m.N_,copy(m.A_))
 

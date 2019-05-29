@@ -8,32 +8,32 @@ struct Dense{T} <: TensorStorage
   Dense{T}() where {T} = new{T}(Vector{T}())
 end
 
-data(D::Dense) = D.data
-length(D::Dense) = length(data(D))
-eltype(D::Dense) = eltype(data(D))
-getindex(D::Dense,i::Int) = data(D)[i]
+data(D::Dense{Float64}) = D.data
+length(D::Dense{Float64}) = length(data(D))
+eltype(D::Dense{Float64}) = eltype(data(D))
+getindex(D::Dense{Float64},i::Int)::Float64 = data(D)[i]
 #TODO: this should do proper promotions of the storage data
 #e.g. ComplexF64*Dense{Float64} -> Dense{ComplexF64}
-*(D::T,x::Number) where {T<:Dense} = T(x*data(D))
-*(x::Number,D::Dense) = D*x
+*(D::Dense{Float64},x::Float64) = Dense{Float64}(x*data(D))
+*(x::Float64,D::Dense{Float64}) = D*x
 
-copy(D::Dense{T}) where {T} = Dense{T}(copy(data(D)))
+copy(D::Dense{Float64}) = Dense{Float64}(copy(data(D)))
 
-outer(D1::Dense{T},D2::Dense{T}) where {T} = Dense{T}(vec(data(D1)*transpose(data(D2))))
+outer(D1::Dense{Float64},D2::Dense{Float64}) = Dense{Float64}(vec(data(D1)*transpose(data(D2))))
 
-storage_convert(::Type{Array},D::Dense,is::IndexSet) = reshape(data(D),dims(is))
+storage_convert(::Type{Array},D::Dense{Float64},is::IndexSet) = reshape(data(D),dims(is))
 
-storage_fill!(D::Dense,x::Number) = fill!(data(D),x)
+storage_fill!(D::Dense{Float64},x::Float64) = fill!(data(D),x)
 
-function storage_getindex(Tstore::Dense{T},
+function storage_getindex(Tstore::Dense{Float64},
                           Tis::IndexSet,
-                          vals::Union{Int, AbstractVector{Int}}...) where {T}
+                          vals::Union{Int, AbstractVector{Int}}...)
   return getindex(reshape(data(Tstore),dims(Tis)),vals...)
 end
 
-function storage_setindex!(Tstore::Dense,
+function storage_setindex!(Tstore::Dense{Float64},
                            Tis::IndexSet,
-                           x::Union{<:Number, AbstractArray{<:Number}},
+                           x::Union{Float64, Array{Float64}},
                            vals::Union{Int, AbstractVector{Int}}...)
   return setindex!(reshape(data(Tstore),dims(Tis)),x,vals...)
 end
@@ -41,9 +41,9 @@ end
 # TODO: optimize this permutation (this does an extra unnecassary permutation
 # since permutedims!() doesn't give the option to add the permutation to the original array)
 # Maybe wrap the c version?
-function storage_add!(Bstore::Dense,
+function storage_add!(Bstore::Dense{Float64},
                       Bis::IndexSet,
-                      Astore::Dense,
+                      Astore::Dense{Float64},
                       Ais::IndexSet)
   p = calculate_permutation(Bis,Ais)
   Adata = data(Astore)
@@ -59,9 +59,9 @@ end
 
 # TODO: make this a special version of storage_add!()
 # Make sure the permutation is optimized
-function storage_permute!(Bstore::Dense,
+function storage_permute!(Bstore::Dense{Float64},
                           Bis::IndexSet,
-                          Astore::Dense,
+                          Astore::Dense{Float64},
                           Ais::IndexSet)
   p = calculate_permutation(Bis,Ais)
   Adata = data(Astore)
@@ -74,11 +74,11 @@ function storage_permute!(Bstore::Dense,
   end
 end
 
-function storage_dag(Astore::Dense,Ais::IndexSet)
+function storage_dag(Astore::Dense{Float64},Ais::IndexSet)
   return dag(Ais),storage_conj(Astore)
 end
 
-function storage_scalar(D::Dense)
+function storage_scalar(D::Dense{Float64})
   if length(D)==1
     return D[1]
   else
@@ -103,9 +103,9 @@ end
 # TODO: make this storage_contract!(), where C is pre-allocated. 
 #       This will allow for in-place multiplication
 # TODO: optimize the contraction logic so C doesn't get permuted?
-function storage_contract(Astore::TensorStorage,
+function storage_contract(Astore::Dense{Float64},
                           Ais::IndexSet,
-                          Bstore::TensorStorage,
+                          Bstore::Dense{Float64},
                           Bis::IndexSet)
   if length(Ais)==0
     Cis = Bis
@@ -129,11 +129,11 @@ function storage_contract(Astore::TensorStorage,
   return (Cis,Cstore)
 end
 
-function storage_svd(Astore::Dense{T},
+function storage_svd(Astore::Dense{Float64},
                      Lis::IndexSet,
                      Ris::IndexSet;
                      kwargs...
-                    ) where {T}
+                    )
   maxdim::Int = get(kwargs,:maxdim,min(dim(Lis),dim(Ris)))
   mindim::Int = get(kwargs,:mindim,1)
   cutoff::Float64 = get(kwargs,:cutoff,0.0)
@@ -160,15 +160,15 @@ function storage_svd(Astore::Dense{T},
 
   u = Index(dS,utags)
   v = settags(u,vtags)
-  Uis,Ustore = IndexSet(Lis...,u),Dense{T}(vec(MU))
+  Uis,Ustore = IndexSet(Lis...,u),Dense{Float64}(vec(MU))
   #TODO: make a diag storage
   Sis,Sstore = IndexSet(u,v),Dense{Float64}(vec(Matrix(Diagonal(MS))))
-  Vis,Vstore = IndexSet(Ris...,v),Dense{T}(Vector{T}(vec(MV)))
+  Vis,Vstore = IndexSet(Ris...,v),Dense{Float64}(Vector{Float64}(vec(MV)))
 
   return (Uis,Ustore,Sis,Sstore,Vis,Vstore)
 end
 
-function storage_eigen(Astore::T,Lis::IndexSet,Ris::IndexSet,matrixtype::Type{S},truncate::Int,lefttags::String,righttags::String) where {T<:Dense,S}
+function storage_eigen(Astore::Dense{Float64},Lis::IndexSet,Ris::IndexSet,matrixtype::Type{S},truncate::Int,lefttags::String,righttags::String) where {S}
   dim_left = dim(Lis)
   dim_right = dim(Ris)
   MD,MU = eigen(S(reshape(data(Astore),dim_left,dim_right)))
@@ -177,19 +177,19 @@ function storage_eigen(Astore::T,Lis::IndexSet,Ris::IndexSet,matrixtype::Type{S}
   dim_middle = min(dim_left,dim_right,truncate)
   u = Index(dim_middle,lefttags)
   v = settags(u,righttags)
-  Uis,Ustore = IndexSet(Lis...,u),T(vec(MU[:,1:dim_middle]))
+  Uis,Ustore = IndexSet(Lis...,u),Dense{Float64}(vec(MU[:,1:dim_middle]))
   #TODO: make a diag storage
-  Dis,Dstore = IndexSet(u,v),T(vec(Matrix(Diagonal(MD[1:dim_middle]))))
+  Dis,Dstore = IndexSet(u,v),Dense{Float64}(vec(Matrix(Diagonal(MD[1:dim_middle]))))
   return (Uis,Ustore,Dis,Dstore)
 end
 
-function polar(A::Matrix)
+function polar(A::Matrix{Float64})
   U,S,V = svd(A)
   return U*V',V*Diagonal(S)*V'
 end
 
 #TODO: make one generic function storage_factorization(Astore,Lis,Ris,factorization)
-function storage_qr(Astore::T,Lis::IndexSet,Ris::IndexSet) where {T<:Dense}
+function storage_qr(Astore::Dense{Float64},Lis::IndexSet,Ris::IndexSet)
   dim_left = dim(Lis)
   dim_right = dim(Ris)
   MQ,MP = qr(reshape(data(Astore),dim_left,dim_right))
@@ -197,20 +197,20 @@ function storage_qr(Astore::T,Lis::IndexSet,Ris::IndexSet) where {T<:Dense}
   u = Index(dim_middle,"Link,u")
   #Must call Matrix() on MQ since the QR decomposition outputs a sparse
   #form of the decomposition
-  Qis,Qstore = IndexSet(Lis...,u),T(vec(Matrix(MQ)))
-  Pis,Pstore = IndexSet(u,Ris...),T(vec(Matrix(MP)))
+  Qis,Qstore = IndexSet(Lis...,u),Dense{Float64}(vec(Matrix(MQ)))
+  Pis,Pstore = IndexSet(u,Ris...),Dense{Float64}(vec(Matrix(MP)))
   return (Qis,Qstore,Pis,Pstore)
 end
 
-function storage_polar(Astore::T,Lis::IndexSet,Ris::IndexSet) where {T<:Dense}
+function storage_polar(Astore::Dense{Float64},Lis::IndexSet,Ris::IndexSet)
   dim_left = dim(Lis)
   dim_right = dim(Ris)
   MQ,MP = polar(reshape(data(Astore),dim_left,dim_right))
   dim_middle = min(dim_left,dim_right)
   #u = Index(dim_middle,"Link,u")
   Uis = addtags(Ris,"u")
-  Qis,Qstore = IndexSet(Lis...,Uis...),T(vec(MQ))
-  Pis,Pstore = IndexSet(Uis...,Ris...),T(vec(MP))
+  Qis,Qstore = IndexSet(Lis...,Uis...),Dense{Float64}(vec(MQ))
+  Pis,Pstore = IndexSet(Uis...,Ris...),Dense{Float64}(vec(MP))
   return (Qis,Qstore,Pis,Pstore)
 end
 
