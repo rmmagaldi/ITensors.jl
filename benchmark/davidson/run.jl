@@ -12,7 +12,8 @@ function main()
   maxdim!(sw,2)
   energy,psi = dmrg(H,psi0,sw,maxiter=3)
 
-  maxdim!(sw,10,20,100,100,200)
+  maxdim!(sw,10,20,100,100,150)
+  println("dmrg:")
   energy,psi = @time dmrg(H,psi0,sw,maxiter=3)
   @printf "Final energy = %.12f\n" energy
 
@@ -21,6 +22,7 @@ function main()
   position!(psi,b)
   position!(PH,psi,b)
   phi = psi[b]*psi[b+1]
+  println("davidson:")
   @time davidson(PH,phi;maxiter=3)
 
   Profile.clear()
@@ -29,6 +31,7 @@ function main()
   ProfileView.view()
 
   dir = "Fromleft"
+  println("replaceBond:")
   @time replaceBond!(psi,b,phi,dir)
 
   return

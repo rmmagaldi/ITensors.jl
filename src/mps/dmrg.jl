@@ -44,8 +44,8 @@ function dmrg(H::MPO,
   energy = 0.0
 
   for sw=1:nsweep(sweeps)
+    t = @elapsed begin
     for (b,ha) in sweepnext(N)
-
       position!(PH,psi,b)
 
       phi = psi[b]*psi[b+1]
@@ -57,9 +57,9 @@ function dmrg(H::MPO,
                    maxdim=maxdim(sweeps,sw),
                    mindim=mindim(sweeps,sw),
                    cutoff=cutoff(sweeps,sw))
-
     end
-    @printf "After sweep %d energy=%.12f maxDim=%d\n" sw energy maxDim(psi)
+    end
+    @printf "After sweep %d/%d: energy=%.12f, maxDim=%d, sweep time=%.12f sec\n" sw nsweep(sweeps) energy maxDim(psi) t
   end
   return (energy,psi)
 end
