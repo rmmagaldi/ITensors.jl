@@ -1,20 +1,4 @@
 
-# Why do we need to do this?
-# Why not just get the extents from the indices?
-#function compute_extents(r::Int,
-#                         strides::Vector{Int},
-#                         lastx::Int)::Vector{Int}
-#  r==0 && return Vector{Int}()
-#  exts = Int[]
-#  tstr = 1
-#  for n in 1:(r-1)
-#    push!(exts,strides[n+1]/tstr)
-#    tstr *= exts[n]
-#  end
-#  push!(exts,lastx)
-#  return exts
-#end
-
 mutable struct CProps
   ai::Vector{Int}
   bi::Vector{Int}
@@ -144,7 +128,7 @@ function find_index(v::Vector{Int},t)::Int
   return -1
 end
 
-function permute_extents(R::Vector{Int},P::Vector{Int})::Vector{Int}
+function permute_extents(R,P)::Vector{Int}
   Rb = fill(0,length(R))
   n = 1
   for pn in P
@@ -155,9 +139,8 @@ function permute_extents(R::Vector{Int},P::Vector{Int})::Vector{Int}
 end
 
 function compute!(props::CProps,
-                  A::Array{Float64},
-                  B::Array{Float64},
-                  C::Array{Float64})
+                  Adims::NTuple{NA,Int},
+                  Bdims::NTuple{NB,Int}) where {NA,NB}
   compute_perms!(props)
 
   #Use props.PC.size() as a check to see if we've already run this
@@ -167,7 +150,6 @@ function compute!(props::CProps,
   rb = length(props.bi)
   rc = length(props.ci)
 
-  # props.PC = Permutation(rc)
   props.PC = fill(0,rc)
 
   props.dleft = 1
@@ -176,16 +158,16 @@ function compute!(props::CProps,
   c = 1
   for i = 1:ra
     if !contractedA(props,i)
-      props.dleft *= size(A,i)
+      props.dleft *= Adims[i]
       props.PC[c] = props.AtoC[i]
       c += 1
     else
-      props.dmid *= size(A,i)
+      props.dmid *= Adims[i]
     end
   end
   for j = 1:rb
     if !contractedB(props,j)
-      props.dright *= size(B,j)
+      props.dright *= Bdims[j]
       props.PC[c] = props.BtoC[j]
       c += 1
     end
@@ -305,7 +287,7 @@ function compute!(props::CProps,
     else
       props.Austart = min(i,props.Austart)
     end
-    props.newArange = permute_extents([size(A)...],props.PA)
+    props.newArange = permute_extents(Adims,props.PA)
   end
 
   if(props.permuteB)
@@ -361,7 +343,7 @@ function compute!(props::CProps,
           props.Bustart = min(i,props.Bustart)
       end
     end
-    props.newBrange = permute_extents([size(B)...],props.PB)
+    props.newBrange = permute_extents(Bdims,props.PB)
   end
 
   if props.permuteA || props.permuteB
@@ -434,25 +416,26 @@ function compute!(props::CProps,
 
 end
 
-function contract!(C::Array{Float64},
+function contract!(Cstore::Dense{Float64},
+                   Cdims::NTuple{NC,Int},
                    p::CProps,
-                   A::Array{Float64},
-                   B::Array{Float64},
-                   α::Float64=1.0,
-                   β::Float64=0.0)
-
+                   Astore::Dense{Float64},
+                   Adims::NTuple{NA,Int},
+                   Bstore::Dense{Float64},
+                   Bdims::NTuple{NB,Int}) where {NA,NB,NC}
   # TODO: This is because the permutation convention in C++ ITensor and
   # permutedims in Julia is different
   p.PA = inv(Permutation(p.PA)).data
   p.PB = inv(Permutation(p.PB)).data
   p.PC = inv(Permutation(p.PC)).data
 
+  A = reshape(data(Astore),Adims)
+  B = reshape(data(Bstore),Bdims)
+  C = reshape(data(Cstore),Cdims)
+
   tA = 'N'
   if p.permuteA
-    #println("Permute A")
-    #@time begin
     aref::Matrix{Float64} = reshape(permutedims(A,p.PA),p.dmid,p.dleft)
-    #end
     tA = 'T'
   else
     #A doesn't have to be permuted
@@ -466,10 +449,7 @@ function contract!(C::Array{Float64},
 
   tB = 'N'
   if p.permuteB
-    #println("Permute B")
-    #@time begin
     bref::Matrix{Float64} = reshape(permutedims(B,p.PB),p.dmid,p.dright)
-    #end
   else
     if Btrans(p)
       bref = reshape(B,p.dright,p.dmid)
@@ -480,10 +460,7 @@ function contract!(C::Array{Float64},
   end
 
   if p.permuteC
-    #println("Permute C")
-    #@time begin
     cref::Matrix{Float64} = reshape(copy(C),p.dleft,p.dright)
-    #end
   else
     if Ctrans(p)
       cref = reshape(C,p.dleft,p.dright)
@@ -499,82 +476,46 @@ function contract!(C::Array{Float64},
     end
   end
 
-  #println("gemm")
-  #@time begin
-  BLAS.gemm!(tA,tB,α,aref,bref,β,cref)
-  #end
+  BLAS.gemm!(tA,tB,1.0,aref,bref,0.0,cref)
  
   if p.permuteC
-    #println("Permute C")
-    #@time begin
     permutedims!(C,reshape(cref,p.newCrange...),p.PC)
-    #end
   end
   return
 end
 
-#TODO: this should be optimized
-function contract_scalar!(Cdata::Array{Float64},Clabels::Vector{Int},
-                          Bdata::Array{Float64},Blabels::Vector{Int},α::Float64,β::Float64)
+function contract_scalar!(Cstore::Dense{Float64},Clabels::Vector{Int},
+                          Bstore::Dense{Float64},Blabels::Vector{Int},α::Float64)
   p = calculate_permutation(Blabels,Clabels)
-  if β==0
-    if is_trivial_permutation(p)
-      Cdata .= α.*Bdata
-    else
-      #TODO: make an optimized permutedims!() that also scales the data
-      permutedims!(Cdata,α*Bdata)
-    end
+  Bdata = data(Bstore)
+  Cdata = data(Cstore)
+  if is_trivial_permutation(p)
+    Cdata .= α.*Bdata
   else
-    if is_trivial_permutation(p)
-      Cdata .= α.*Bdata .+ β.*Cdata
-    else
-      #TODO: make an optimized permutedims!() that also adds and scales the data
-      permBdata = permutedims(Bdata,p)
-      Cdata .= α.*permBdata .+ β.*Cdata
-    end
+    #TODO: make an optimized permutedims!() that also scales the data
+    permutedims!(Cdata,α*Bdata)
   end
   return
 end
 
-function contract!(Cdata::Array{Float64},Clabels::Vector{Int},
-                   Adata::Array{Float64},Alabels::Vector{Int},
-                   Bdata::Array{Float64},Blabels::Vector{Int},
-                   α::Float64=1.0,β::Float64=0.0)
+function contract!(Cstore::Dense{Float64},
+                   Cdims::NTuple{NC,Int},
+                   Clabels::Vector{Int},
+                   Astore::Dense{Float64},
+                   Adims::NTuple{NA,Int},
+                   Alabels::Vector{Int},
+                   Bstore::Dense{Float64},
+                   Bdims::NTuple{NB,Int},
+                   Blabels::Vector{Int}) where {NA,NB,NC}
   if(length(Alabels)==0)
-    contract_scalar!(Cdata,Clabels,Bdata,Blabels,α*Adata[1],β)
+    contract_scalar!(Cstore,Clabels,Bstore,Blabels,Adata[1])
   elseif(length(Blabels)==0)
-    contract_scalar!(Cdata,Clabels,Adata,Alabels,α*Bdata[1],β)
+    contract_scalar!(Cstore,Clabels,Astore,Alabels,Bdata[1])
   else
     props = CProps(Alabels,Blabels,Clabels)
-    compute!(props,Adata,Bdata,Cdata)
-    contract!(Cdata,props,Adata,Bdata,α,β)
+    compute!(props,Adims,Bdims)
+    contract!(Cstore,Cdims,props,Astore,Adims,Bstore,Bdims)
   end
   return
-end
-
-function contract(Cinds::IndexSet,
-                  Clabels::Vector{Int},
-                  Astore::Dense{Float64},
-                  Ainds::IndexSet,
-                  Alabels::Vector{Int},
-                  Bstore::Dense{Float64},
-                  Binds::IndexSet,
-                  Blabels::Vector{Int})::Dense{Float64}
-  Adims = dims(Ainds)
-  Bdims = dims(Binds)
-  Cdims = dims(Cinds)
-
-  # Create storage for output tensor
-  #println("Allocate C storage")
-  #@time begin
-  Cstore = Dense{Float64}(prod(Cdims))
-  #end
-
-  Adata = reshape(data(Astore),Adims)
-  Bdata = reshape(data(Bstore),Bdims)
-  Cdata = reshape(data(Cstore),Cdims)
-
-  contract!(Cdata,Clabels,Adata,Alabels,Bdata,Blabels)
-  return Cstore
 end
 

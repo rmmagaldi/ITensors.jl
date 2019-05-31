@@ -1,4 +1,4 @@
-using ITensors, Printf, Profile, ProfileView
+using ITensors, Printf, Profile, ProfileView, BenchmarkTools
 
 function main()
   N = 100
@@ -10,16 +10,26 @@ function main()
 
   # Run once to compile
   maxdim!(sw,2)
-  energy,psi = @time dmrg(H,psi0,sw,maxiter=3)
+  energy,psi = dmrg(H,psi0,sw,maxiter=3)
 
   maxdim!(sw,10,20,100,100,200)
   energy,psi = @time dmrg(H,psi0,sw,maxiter=3)
   @printf "Final energy = %.12f\n" energy
 
-  Profile.clear()  # in case we have any previous profiling data
+  PH = ProjMPO(H)
+  b = Int(N//2)
+  position!(psi,b)
+  position!(PH,psi,b)
+  phi = psi[b]*psi[b+1]
+  @time davidson(PH,phi;maxiter=3)
+
+  Profile.clear()
   Profile.init(n = 10^7)
-  @profile dmrg(H,psi0,sw,maxiter=3)
+  @profile davidson(PH,phi;maxiter=3)
   ProfileView.view()
+
+  dir = "Fromleft"
+  @time replaceBond!(psi,b,phi,dir)
 
   return
 end

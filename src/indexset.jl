@@ -80,14 +80,16 @@ function hassameinds(Ainds,Binds)
 end
 
 "Output the IndexSet with Indices in Bis but not in Ais"
-function uniqueinds(Binds,Ainds)
+function uniqueinds(Binds,Ainds...)
+  Ais = IndexSet(Ainds...)
   Bis = IndexSet(Binds)
   Cis = IndexSet()
   for j ∈ Bis
-    !hasindex(Ainds,j) && push!(Cis,j)
+    !hasindex(Ais,j) && push!(Cis,j)
   end
   return Cis
 end
+uniqueindex(Ais,Bis...) = Index(uniqueinds(Ais,Bis...))
 
 "Output the IndexSet in the intersection of Ais and Bis"
 function commoninds(Binds,Ainds)

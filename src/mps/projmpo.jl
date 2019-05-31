@@ -24,20 +24,15 @@ end
 function product(pm::ProjMPO,
                  v::ITensor{Dense{Float64}})::ITensor{Dense{Float64}}
   Hv = v
-  #@show Hv
   if !isNull(LProj(pm))
-    #@show LProj(pm)
     Hv *= LProj(pm)
   end
   for j=pm.lpos+1:pm.rpos-1
-    #@show pm.H[j]
     Hv *= pm.H[j]
   end
   if !isNull(RProj(pm))
-    #@show RProj(pm)
     Hv *= RProj(pm)
   end
-  #@show Hv
   return noprime(Hv)
 end
 

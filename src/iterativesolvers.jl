@@ -1,4 +1,44 @@
 
+function get_vecs(M::Matrix{Float64},
+                  V::Vector{ITensor{Dense{Float64}}},
+                  AV::Vector{ITensor{Dense{Float64}}},
+                  ni::Int)::Tuple{Float64,ITensor{Dense{Float64}},ITensor{Dense{Float64}}}
+  F = eigen(Hermitian(M))
+  lambda = F.values[1]
+  u = F.vectors[:,1]
+  phi = u[1]*V[1]
+  q = u[1]*AV[1]
+  for n=2:ni
+    add_noperm!(phi,V[n],u[n])
+    add_noperm!(q,AV[n],u[n])
+  end
+  add_noperm!(q,phi,-lambda)
+  #Fix sign
+  if real(u[1]) < 0
+    scale!(phi,-1.0)
+    scale!(q,-1.0)
+  end
+  return lambda,phi,q
+end
+
+function orthogonalize(q::ITensor{Dense{Float64}},
+                       V::Vector{ITensor{Dense{Float64}}},
+                       ni::Int)::ITensor{Dense{Float64}}
+  q0 = q
+  q_ortho = copy(q)
+  for k=1:ni
+    Vqk = dot(V[k],q0)
+    add_noperm!(q_ortho,V[k],-Vqk)
+  end
+  qnrm = norm(q_ortho)
+  if qnrm < 1E-10 #orthog failure, try randomizing
+    # TODO: put random recovery code here
+    error("orthog failure")
+  end
+  scale!(q_ortho,1.0/qnrm)
+  return q_ortho
+end
+
 function davidson(A,
                   phi0::ITensor{Dense{Float64}};
                   kwargs...)
@@ -28,40 +68,17 @@ function davidson(A,
   V = ITensor{Dense{Float64}}[phi]
   AV = ITensor{Dense{Float64}}[A(phi)]
 
-  #@show V
-  #@show AV
-
-  #@show inds(V[1])
-  #@show inds(AV[1])
-
   last_lambda = NaN
   lambda = dot(V[1],AV[1])
-  q = AV[1] - lambda*V[1];
+  q::ITensor{Dense{Float64}} = AV[1];
+  add_noperm!(q,V[1],-lambda);
 
   M = fill(lambda,(1,1))
 
   for ni=1:actual_maxiter+1
 
     if ni > 1
-      #@show M
-      F = eigen(Hermitian(M))
-      lambda = F.values[1]
-      u = F.vectors[:,1]
-      phi = u[1]*V[1]
-      q = u[1]*AV[1]
-      for n=2:ni
-        phi += u[n]*V[n]
-        q   += u[n]*AV[n]
-      end
-      #phinrm = norm(phi)
-      #phi /= phinrm
-      #q /= phinrm
-      q -= lambda*phi
-      #Fix sign
-      if real(u[1]) < 0
-        phi *= -1.0
-        q *= -1.0
-      end
+      lambda,phi,q = get_vecs(M,V,AV,ni)
     end
 
     qnorm = norm(q)
@@ -77,18 +94,8 @@ function davidson(A,
 
     last_lambda = lambda
 
-    pass = 1
-    while pass <= Northo_pass
-      for k=1:ni
-        q += -dot(V[k],q)*V[k]
-      end
-      qnrm = norm(q)
-      if qnrm < 1E-10 #orthog failure, try randomizing
-        # TODO: put random recovery code here
-        error("orthog failure")
-      end
-      q /= qnrm
-      pass += 1
+    for pass = 1:Northo_pass
+      q = orthogonalize(q,V,ni)
     end
 
     push!(V,q)

@@ -10,12 +10,27 @@ end
 
 data(D::Dense{Float64}) = D.data
 length(D::Dense{Float64}) = length(data(D))
-eltype(D::Dense{Float64}) = eltype(data(D))
+eltype(D::Dense{Float64}) = Float64
 getindex(D::Dense{Float64},i::Int)::Float64 = data(D)[i]
+
+storage_randn!(S::Dense{Float64}) = randn!(data(S))
+storage_norm(S::Dense{Float64})::Float64 = norm(data(S))
+storage_conj(S::Dense{Float64}) = Dense{Float64}(conj(data(S)))
+
 #TODO: this should do proper promotions of the storage data
 #e.g. ComplexF64*Dense{Float64} -> Dense{ComplexF64}
 *(D::Dense{Float64},x::Float64) = Dense{Float64}(x*data(D))
 *(x::Float64,D::Dense{Float64}) = D*x
+/(D::Dense{Float64},x::Float64) = Dense{Float64}(data(D)/x)
+-(D::Dense{Float64}) = Dense{Float64}(-data(D))
+
+dot(D1::Dense{Float64},D2::Dense{Float64}) = dot(data(D1),data(D2))
+
+function scale!(D::Dense{Float64},x::Float64)
+  Ddata = data(D)
+  rmul!(Ddata,x)
+  return
+end
 
 copy(D::Dense{Float64}) = Dense{Float64}(copy(data(D)))
 
@@ -38,23 +53,47 @@ function storage_setindex!(Tstore::Dense{Float64},
   return setindex!(reshape(data(Tstore),dims(Tis)),x,vals...)
 end
 
+function storage_permute(Astore::Dense{Float64},
+                         Adims::NTuple{N,Int},
+                         perm::Vector{Int}) where {N}
+  return Dense{Float64}(vec(permutedims(reshape(data(Astore),Adims),perm)))
+end
+
+function storage_add!(Bstore::Dense{Float64},
+                      Astore::Dense{Float64})
+  Adata = data(Astore)
+  Bdata = data(Bstore)
+  Bdata .+= Adata
+end
+
+function storage_add!(Bstore::Dense{Float64},
+                      Astore::Dense{Float64},
+                      α::Real)
+  Adata = data(Astore)
+  Bdata = data(Bstore)
+  Bdata .+= α.*Adata
+end
+
 # TODO: optimize this permutation (this does an extra unnecassary permutation
 # since permutedims!() doesn't give the option to add the permutation to the original array)
 # Maybe wrap the c version?
 function storage_add!(Bstore::Dense{Float64},
-                      Bis::IndexSet,
+                      Bdims::NTuple{N,Int},
                       Astore::Dense{Float64},
-                      Ais::IndexSet)
-  p = calculate_permutation(Bis,Ais)
-  Adata = data(Astore)
-  Bdata = data(Bstore)
-  if is_trivial_permutation(p)
-    Bdata .+= Adata
-  else
-    reshapeBdata = reshape(Bdata,dims(Bis))
-    permAdata = permutedims(reshape(Adata,dims(Ais)),p)
-    reshapeBdata .+= permAdata
-  end
+                      Adims::NTuple{N,Int},
+                      perm::Vector{Int}) where {N}
+  Astore = storage_permute(Astore,Adims,perm)
+  storage_add!(Bstore,Astore)
+end
+
+function storage_add!(Bstore::Dense{Float64},
+                      Bdims::NTuple{N,Int},
+                      Astore::Dense{Float64},
+                      Adims::NTuple{N,Int},
+                      α::Float64,
+                      perm::Vector{Int}) where {N}
+  Astore = storage_permute(Astore,Adims,perm)
+  storage_add!(Bstore,Astore,α)
 end
 
 # TODO: make this a special version of storage_add!()
@@ -98,35 +137,6 @@ function is_outer(l1::Vector{Int},l2::Vector{Int})
     end
   end
   return true
-end
-
-# TODO: make this storage_contract!(), where C is pre-allocated. 
-#       This will allow for in-place multiplication
-# TODO: optimize the contraction logic so C doesn't get permuted?
-function storage_contract(Astore::Dense{Float64},
-                          Ais::IndexSet,
-                          Bstore::Dense{Float64},
-                          Bis::IndexSet)
-  if length(Ais)==0
-    Cis = Bis
-    Cstore = storage_scalar(Astore)*Bstore
-  elseif length(Bis)==0
-    Cis = Ais
-    Cstore = storage_scalar(Bstore)*Astore
-  else
-    #TODO: check for special case when Ais and Bis are disjoint sets
-    #I think we should do this analysis outside of storage_contract, at the ITensor level
-    #(since it is universal for any storage type and just analyzes in indices)
-    (Alabels,Blabels) = compute_contraction_labels(Ais,Bis)
-    if is_outer(Alabels,Blabels)
-      Cis = IndexSet(Ais,Bis)
-      Cstore = outer(Astore,Bstore)
-    else
-      (Cis,Clabels) = contract_inds(Ais,Alabels,Bis,Blabels)
-      Cstore = contract(Cis,Clabels,Astore,Ais,Alabels,Bstore,Bis,Blabels)
-    end
-  end
-  return (Cis,Cstore)
 end
 
 function storage_svd(Astore::Dense{Float64},

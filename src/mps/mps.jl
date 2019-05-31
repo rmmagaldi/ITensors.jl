@@ -86,10 +86,25 @@ function show(io::IO,
   end
 end
 
-function linkind(psi::MPS,j::Integer) 
+function siteindex(psi::MPS,j::Integer)
+  N = length(psi)
+  if j == 1
+    li = uniqueindex(psi[j],psi[j+1])
+  elseif j == N
+    li = uniqueindex(psi[j],psi[j-1])
+  else
+    li = uniqueindex(psi[j],psi[j-1],psi[j+1])
+  end
+  if isdefault(li)
+    error("siteindex: no MPS link index at link $j")
+  end
+  return li
+end
+
+function linkindex(psi::MPS,j::Integer) 
   li = commonindex(psi[j],psi[j+1])
   if isdefault(li)
-    error("linkind: no MPS link index at link $j")
+    error("linkindex: no MPS link index at link $j")
   end
   return li
 end
@@ -97,7 +112,7 @@ end
 function simlinks!(m::MPS)
   N = length(m)
   for i ∈ 1:N-1
-    l = linkind(m,i)
+    l = linkindex(m,i)
     l̃ = sim(l)
     m[i] *= δ(l,l̃)
     m[i+1] *= δ(l,l̃)
@@ -110,11 +125,11 @@ function position!(psi::MPS,
 
   while leftLim(psi) < (j-1)
     ll = leftLim(psi)+1
-    s = findtags(psi[ll],"Site")
+    s = siteindex(psi,ll)
     if ll == 1
       (Q,R) = qr(psi[ll],s)
     else
-      li = linkind(psi,ll-1)
+      li = linkindex(psi,ll-1)
       (Q,R) = qr(psi[ll],s,li)
     end
     psi[ll] = Q
@@ -124,11 +139,11 @@ function position!(psi::MPS,
 
   while rightLim(psi) > (j+1)
     rl = rightLim(psi)-1
-    s = findtags(psi[rl],"Site")
+    s = siteindex(psi,rl)
     if rl == N
       (Q,R) = qr(psi[rl],s)
     else
-      ri = linkind(psi,rl)
+      ri = linkindex(psi,rl)
       (Q,R) = qr(psi[rl],s,ri)
     end
     psi[rl] = Q
@@ -183,7 +198,7 @@ end
 function maxDim(psi::MPS)
   md = 1
   for b=1:length(psi)-1
-    md = max(md,dim(linkind(psi,b)))
+    md = max(md,dim(linkindex(psi,b)))
   end
   return md
 end

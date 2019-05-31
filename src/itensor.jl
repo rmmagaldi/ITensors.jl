@@ -39,6 +39,7 @@ inds(T::ITensor) = T.inds
 # This constructor allows many IndexSet
 # set operations to work with ITensors
 IndexSet(T::ITensor) = inds(T)
+IndexSet(T::ITensor...) = IndexSet(inds.(T)...)
 
 store(T::ITensor) = T.store
 
@@ -161,7 +162,7 @@ randomITensor(::Type{S},inds::Index...) where {S<:Number} = randomITensor(S,Inde
 randomITensor(inds) = randomITensor(Float64,IndexSet(inds))
 randomITensor(inds::Index...) = randomITensor(Float64,IndexSet(inds...))
 
-norm(T::ITensor{Dense{Float64}}) = storage_norm(store(T))
+norm(T::ITensor{Dense{Float64}})::Float64 = storage_norm(store(T))
 dag(T::ITensor{Dense{Float64}}) = ITensor(storage_dag(store(T),inds(T))...)
 
 function permute(T::ITensor{Dense{Float64}},permTinds)
@@ -173,16 +174,47 @@ end
 permute(T::ITensor{Dense{Float64}},inds::Index...) = permute(T,IndexSet(inds...))
 
 function add!(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
-  storage_add!(store(A),inds(A),store(B),inds(B))
+  perm = calculate_permutation(inds(A),inds(B))
+  if is_trivial_permutation(perm)
+    storage_add!(store(A),store(B))
+  else
+    storage_add!(store(A),dims(A),store(B),dims(B),perm)
+  end
+  return
+end
+
+function add!(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}},α::Float64)
+  perm = calculate_permutation(inds(A),inds(B))
+  if is_trivial_permutation(perm)
+    storage_add!(store(A),store(B),α)
+  else
+    storage_add!(store(A),dims(A),store(B),dims(B),α,perm)
+  end
+  return
+end
+
+function add_noperm!(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
+  storage_add!(store(A),store(B))
+  return
+end
+
+function add_noperm!(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}},α::Float64)
+  storage_add!(store(A),store(B),α)
+  return
+end
+
+function scale!(A::ITensor{Dense{Float64}},x::Float64)
+  scale!(store(A),x)
+  return
 end
 
 #TODO: improve these using a storage_mult call
-*(A::ITensor{Dense{Float64}},x::Float64) = A*ITensor(x)
+*(A::ITensor{Dense{Float64}},x::Float64) = ITensor(inds(A),store(A)*x)
 *(x::Float64,A::ITensor{Dense{Float64}}) = A*x
 #TODO: make a proper element-wise division
-/(A::ITensor{Dense{Float64}},x::Float64) = A*ITensor(1.0/x)
+/(A::ITensor{Dense{Float64}},x::Float64) = ITensor(inds(A),store(A)/x)
 
--(A::ITensor) = -one(eltype(A))*A
+-(A::ITensor{Dense{Float64}}) = ITensor(inds(A),-store(A))
 function +(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
   #A==B && return 2*A
   C = copy(A)
@@ -197,9 +229,55 @@ end
 #We can move the logic of getting the integer labels,
 #etc. since they are generic for all storage types
 function *(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})
-  (Cis,Cstore) = storage_contract(store(A),inds(A),store(B),inds(B))
-  C = ITensor(Cis,Cstore)
-  return C
+  Ais = inds(A)
+  Bis = inds(B)
+  Astore = store(A)
+  Bstore = store(B)
+  if length(Ais)==0
+    Cis = Bis
+    Cstore = storage_scalar(Astore)*Bstore
+    return ITensor(Cis,Cstore)
+  elseif length(Bis)==0
+    Cis = Ais
+    Cstore = storage_scalar(Bstore)*Astore
+    return ITensor(Cis,Cstore)
+  end
+
+  (Alabels,Blabels) = compute_contraction_labels(Ais,Bis)
+  if is_outer(Alabels,Blabels)
+    Cis = IndexSet(Ais,Bis)
+    Cstore = outer(Astore,Bstore)
+    return ITensor(Cis,Cstore)
+  end
+
+  (Cis,Clabels) = contract_inds(Ais,Alabels,Bis,Blabels)
+
+  if length(Cis)==0
+    return ITensor(dot(A,B))
+  end
+
+  Adims = dims(Ais)
+  Bdims = dims(Bis)
+  Cdims = dims(Cis)
+  Cstore = Dense{Float64}(Vector{Float64}(undef,prod(Cdims)))
+  contract!(Cstore,Cdims,Clabels,Astore,Adims,Alabels,Bstore,Bdims,Blabels)
+  #(Cis,Cstore) = storage_contract(store(A),inds(A),store(B),inds(B))
+  return ITensor(Cis,Cstore)
+end
+
+function dot(A::ITensor{Dense{Float64}},B::ITensor{Dense{Float64}})::Float64
+  Astore = store(A)
+  Bstore = store(B)
+  Ais = inds(A)
+  Bis = inds(B)
+  perm = calculate_permutation(Ais,Bis)
+  if is_trivial_permutation(perm)
+    return dot(Astore,Bstore)
+  else
+    Adims = dims(A)
+    Astore = storage_permute(Astore,Adims,perm)
+    return dot(Astore,Bstore)
+  end
 end
 
 function show_info(io::IO,
@@ -241,8 +319,6 @@ function mul!(R::ITensor,
 end
 
 rmul!(T::ITensor,fac::Number) = (T *= fac)
-
-dot(A::ITensor,B::ITensor) = scalar(dag(A)*B)
 
 function axpy!(a::Number,
                v::ITensor,

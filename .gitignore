@@ -1,1 +1,5 @@
 *.swp
+*.o
+benchmark/davidson/cpp/run
+benchmark/dmrg/cpp/run
+benchmark/contract/cpp/run

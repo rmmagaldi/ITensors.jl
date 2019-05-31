@@ -45,20 +45,12 @@ function dmrg(H::MPO,
 
   for sw=1:nsweep(sweeps)
     for (b,ha) in sweepnext(N)
-      #@printf "sw=%d ha=%d b=%d\n" sw ha b
 
       position!(PH,psi,b)
 
       phi = psi[b]*psi[b+1]
-      #@printf "initial phi norm = %.3f\n" norm(phi)
-      #@printf "initial energy = %.8f\n" scalar(phi*PH(phi))/norm(phi)^2
 
       energy,phi = davidson(PH,phi;kwargs...)
-
-      #energy,phi = iterEigSolve(PH,phi;kwargs...)
-      #@printf "unnorm energy=%.8f\n" scalar(phi*PH(phi))
-      #phi /= norm(phi)
-      #@printf "check phi energy = %.8f\n" scalar(phi*PH(phi))/norm(phi)^2
 
       dir = ha==1 ? "Fromleft" : "Fromright"
       replaceBond!(psi,b,phi,dir;
@@ -66,13 +58,6 @@ function dmrg(H::MPO,
                    mindim=mindim(sweeps,sw),
                    cutoff=cutoff(sweeps,sw))
 
-      #nphi = psi[b]*psi[b+1]
-      #@printf "final MPS norm = %.3f\n" norm(nphi)
-      #@printf "final energy = %.8f\n" scalar(nphi*PH(nphi))/norm(nphi)^2
-      #@printf "dim=%d\n" dim(linkind(psi,b))
-
-      #@printf "sw=%d ha=%d b=%d energy=%.8f dim=%d\n" sw ha b energy dim(linkind(psi,b))
-      #pause()
     end
     @printf "After sweep %d energy=%.12f maxDim=%d\n" sw energy maxDim(psi)
   end
