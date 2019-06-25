@@ -10,14 +10,14 @@ using ITensors,
   j = Index(jdim,"j")
   k = Index(kdim,"k")
   l = Index(ldim,"l")
-  @testset "Index dimensions" begin
-    I = IndexSet(i,j,k)
-    @test dim(I) == idim*jdim*kdim
-    @test dims(I) == (idim,jdim,kdim)
-    @test dim(I,1) == idim
-    @test dim(I,2) == jdim
-    @test dim(I,3) == kdim
-  end
+  #@testset "Index dimensions" begin
+  #  I = IndexSet(i,j,k)
+  #  @test dim(I) == idim*jdim*kdim
+  #  @test dims(I) == (idim,jdim,kdim)
+  #  @test dim(I,1) == idim
+  #  @test dim(I,2) == jdim
+  #  @test dim(I,3) == kdim
+  #end
   @testset "Set operations" begin
     I1 = IndexSet(i,j,k)
     I2 = IndexSet(k,l)

@@ -12,15 +12,37 @@ export hasindex,
        uniqueindex
 
 struct IndexSet
-    inds::Vector{Index}
-    IndexSet(inds::Vector{Index}) = new(inds)
+    len::Int
+    inds::NTuple{6,Index}
+
+    IndexSet() = new(0,(Index(),Index(),Index(),Index(),Index(),Index()))
+    IndexSet(i1::Index) = new(1,(i1,Index(),Index(),Index(),Index(),Index()))
+    IndexSet(i1::Index,i2::Index) = new(2,(i1,i2,Index(),Index(),Index(),Index()))
+    IndexSet(i1::Index,i2::Index,i3::Index) = new(3,(i1,i2,i3,Index(),Index(),Index()))
+    IndexSet(i1::Index,i2::Index,i3::Index,i4::Index) = new(4,(i1,i2,i3,i4,Index(),Index()))
+    IndexSet(i1::Index,i2::Index,i3::Index,i4::Index,i5::Index) = new(5,(i1,i2,i3,i4,i5,Index()))
+    IndexSet(i1::Index,i2::Index,i3::Index,i4::Index,i5::Index,i6::Index) = new(6,(i1,i2,i3,i4,i5,i6))
+
+    function IndexSet(vi::Vector{Index})
+      li = length(vi)
+      n = 1
+      is = ntuple(x->Index(),6)
+      while (n <= li) && !isdefault(vi[n])
+        is = setindex(is,vi[n],n)
+        n += 1
+      end
+      return new(n-1,is)
+      #li = length(i)
+      #if li >= 6
+      #  return new(6,(i[1],i[2],i[3],i[4],i[5],i[6]))
+      #end
+      #return new(li,tuple(i...,ntuple(x->Index(),6-li)...))
+    end
 end
 
-# Empty constructor
-IndexSet() = IndexSet(Index[])
 
 # Construct of some size
-IndexSet(N::Integer) = IndexSet(Vector{Index}(undef,N))
+#IndexSet(N::Integer) = IndexSet(Vector{Index}(undef,N))
 
 # Construct from various sets of indices
 IndexSet(inds::Index...) = IndexSet(Index[inds...])
@@ -28,21 +50,29 @@ IndexSet(inds::NTuple{N,Index}) where {N} = IndexSet(inds...)
 
 # Construct from various sets of IndexSets
 IndexSet(inds::IndexSet) = inds
-IndexSet(inds::IndexSet,i::Index) = IndexSet(inds...,i)
-IndexSet(i::Index,inds::IndexSet) = IndexSet(i,inds...)
-IndexSet(is1::IndexSet,is2::IndexSet) = IndexSet(is1...,is2...)
-IndexSet(inds::NTuple{2,IndexSet}) = IndexSet(inds...)
+#IndexSet(inds::IndexSet,i::Index) = IndexSet(inds...,i)
+#IndexSet(i::Index,inds::IndexSet) = IndexSet(i,inds...)
+#IndexSet(is1::IndexSet,is2::IndexSet) = IndexSet(is1...,is2...)
+#IndexSet(inds::NTuple{2,IndexSet}) = IndexSet(inds...)
+
+length(is::IndexSet) = is.len
 
 # Convert to an Index if there is only one
 Index(is::IndexSet) = length(is)==1 ? is[1] : error("Number of Index in IndexSet ≠ 1")
 
 getindex(is::IndexSet,n::Integer) = getindex(is.inds,n)
-setindex!(is::IndexSet,i::Index,n::Integer) = setindex!(is.inds,i,n)
-length(is::IndexSet) = length(is.inds)
+#setindex!(is::IndexSet,i::Index,n::Integer) = setindex!(is.inds,i,n)
 order(is::IndexSet) = length(is)
 copy(is::IndexSet) = IndexSet(copy(is.inds))
 dims(is::IndexSet) = Tuple(dim(i) for i ∈ is)
-dim(is::IndexSet) = prod(dim.(is))
+function dim(is::IndexSet)::Int
+  d = 1
+  for n=1:6
+    isdefault(is[n]) && break
+    d *= dim(is[n])
+  end
+  return d
+end
 dim(is::IndexSet,pos::Integer) = dim(is[pos])
 
 dag(is::IndexSet) = IndexSet(dag.(is.inds))
@@ -51,7 +81,11 @@ dag(is::IndexSet) = IndexSet(dag.(is.inds))
 size(is::IndexSet) = size(is.inds)
 iterate(is::IndexSet,state::Int=1) = iterate(is.inds,state)
 
-push!(is::IndexSet,i::Index) = push!(is.inds,i)
+#push!(is::IndexSet,i::Index) = push!(is.inds,i)
+
+function push!(is::IndexSet,i::Index) 
+  is = IndexSet(tuple(is.inds...,i))
+end
 
 # 
 # Set operations
@@ -296,7 +330,12 @@ swaptags(is, vargs...) = swaptags!(copy(is), vargs...)
 function calculate_permutation(set1, set2)
   l1 = length(set1)
   l2 = length(set2)
-  l1==l2 || throw(DimensionMismatch("Mismatched input sizes in calcPerm: l1=$l1, l2=$l2"))
+  #l1==l2 || throw(DimensionMismatch("Mismatched input sizes in calcPerm: l1=$l1, l2=$l2"))
+  if l1!=l2 
+    @show set1
+    @show set2
+    throw(DimensionMismatch("Mismatched input sizes in calcPerm: l1=$l1, l2=$l2"))
+  end
   p = zeros(Int,l1)
   for i1 = 1:l1
     for i2 = 1:l2

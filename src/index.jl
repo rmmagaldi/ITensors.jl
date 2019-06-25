@@ -72,7 +72,7 @@ sim(i::Index) = Index(rand(IDType),dim(i),dir(i),copy(tags(i)))
 
 dag(i::Index) = Index(id(i),dim(i),-dir(i),tags(i))
 
-isdefault(i::Index) = (i==Index())
+isdefault(i::Index) = (i.id==IDType(0))
 
 hastags(i::Index, ts) = hastags(tags(i),ts)
 
