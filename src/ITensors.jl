@@ -3,7 +3,8 @@ module ITensors
 using Random,
       Printf,
       LinearAlgebra,
-      StaticArrays # For SmallString
+      StaticArrays, # For SmallString
+      TimerOutputs
 
 # TODO: move imports to individual files
 import Base.adjoint,
@@ -52,6 +53,7 @@ import Base.adjoint,
 # Global Variables
 
 const warnTensorOrder = 10
+const GLOBAL_TIMER = TimerOutput()
 
 #####################################
 
