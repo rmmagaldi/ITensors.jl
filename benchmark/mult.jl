@@ -1,4 +1,4 @@
-using ITensors, Printf
+using Tensors, Printf, TimerOutputs
 
 function main()
   s1 = Index(2,"s1,Site");
@@ -26,7 +26,7 @@ function main()
     phip *= R;
   end
   end
-  reset!(timer)
+  reset_timer!(Tensors.GLOBAL_TIMER)
   # End dry run
 
   time = @elapsed begin
@@ -39,6 +39,6 @@ function main()
   end
 
   @printf "time = %.12f\n" time
-  printTimes(timer)
+  @show Tensors.GLOBAL_TIMER
 
 end; main()

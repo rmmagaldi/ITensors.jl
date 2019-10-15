@@ -116,31 +116,92 @@ array(T::DenseTensor) = reshape(data(store(T)),dims(inds(T)))
 matrix(T::DenseTensor{<:Number,2}) = array(T)
 vector(T::DenseTensor{<:Number,1}) = array(T)
 
+# TODO: allow construction from Array (expand storage beyond
+# vec)
+tensor(A::Array{El}) where {El} = Tensor(Dense{El}(vec(A)),size(A))
+
 # TODO: call permutedims!(R,T,perm,(r,t)->t)?
-function Base.permutedims!(R::DenseTensor{<:Number,N},
-                           T::DenseTensor{<:Number,N},
-                           perm::NTuple{N,Int}) where {N}
-  permutedims!(array(R),array(T),perm)
-  return R
-end
+#function Base.permutedims!(R::DenseTensor{<:Number,N},
+#                           T::DenseTensor{<:Number,N},
+#                           perm::NTuple{N,Int}) where {N}
+#  permutedims!(array(R),array(T),perm)
+#  return R
+#end
 
 # Version that may overwrite the result or promote
 # and return the result
 # TODO: move to tensor.jl?
-function permutedims!!(R::Tensor,
-                       T::Tensor,
+function permutedims!!(R::Tensor{ElR,N},
+                       T::Tensor{ElT,N},
                        perm::NTuple{N,Int},
-                       f=(r,t)->t) where {N}
-  permutedims!(R,T,perm,f)
+                       α::Number=0.0,
+                       β::Number=1.0) where {ElR,ElT,N}
+  RA = array(R)
+  TA = array(T)
+  if !is_trivial_permutation(perm)
+    if α==0
+      if β==0
+        RA .= zero(ElR)
+      elseif β==1
+        permutedims!(RA,TA,perm)
+      else
+        permutedims!(R,T,perm,β)
+      end
+    elseif α==1
+      if β==0
+        # Do nothing
+      elseif β==1
+        addpermutedims!(R,T,perm,1.0,1.0)
+      else
+        addpermutedims!(R,T,perm,1.0,β)
+      end
+    else
+      if β==0
+        RA .*= α
+      elseif β==1
+        addpermutedims!(R,T,perm,(x,y)->α,1.0)
+      else
+        addpermutedims!(R,T,perm,(x,y)->α,β)
+      end
+    end
+  else
+    if α==0
+      if β==0
+        RA .= zero(ElR)
+      elseif β==1
+        @. RA = TA
+      else
+        @. RA = β * TA
+      end
+    elseif α==1
+      if β==0
+        # Do nothing
+      elseif β==1
+        @. RA += TA
+      else
+        @. RA += β * TA
+      end
+    else
+      if β==0
+        @. RA *= α
+      elseif β==1
+        @. RA = α * RA + TA
+      else β==1
+        @. RA = α * RA + β * TA
+      end
+    end
+  end
   return R
 end
 
 # TODO: move to tensor.jl?
 function Base.permutedims(T::Tensor{<:Number,N},
-                          perm::NTuple{N,Int}) where {N}
-  Tp = similar(T,permute(inds(T),perm))
-  Tp = permutedims!!(Tp,T,perm)
-  return Tp
+                          perm::NTuple{N,Int},
+                          α::Number=0.0,
+                          β::Number=1.0) where {N}
+  R = similar(T,permute(inds(T),perm))
+  R = permutedims!!(R,T,perm,α,β)
+  return R
 end
 
 # TODO: move to tensor.jl?
@@ -163,12 +224,14 @@ using Base.Cartesian: @nexprs,
 # Based off of the permutedims! implementation in Julia's base:
 # https://github.com/JuliaLang/julia/blob/91151ab871c7e7d6689d1cfa793c12062d37d6b6/base/multidimensional.jl#L1355
 #
-@generated function Base.permutedims!(TP::DenseTensor{<:Number,N},
-                                      T::DenseTensor{<:Number,N},
+@generated function Base.permutedims!(RT::DenseTensor{<:Number,N},
+                                      TT::DenseTensor{<:Number,N},
                                       perm,
-                                      f::Function) where {N}
+                                      α::Number) where {N}
   quote
-    Base.checkdims_perm(TP, T, perm)
+    R = array(RT)
+    T = array(TT)
+    Base.checkdims_perm(R, T, perm)
 
     #calculates all the strides
     native_strides = Base.size_to_strides(1, size(T)...)
@@ -180,25 +243,58 @@ using Base.Cartesian: @nexprs,
 
     ind = 1
     @nexprs 1 d->(counts_{$N+1} = strides_{$N+1}) # a trick to set counts_($N+1)
-    @nloops($N, i, TP,
+    @nloops($N, i, R,
             d->(counts_d = strides_d), # PRE
             d->(counts_{d+1} += strides_{d+1}), # POST
             begin # BODY
                 sumc = sum(@ntuple $N d->counts_{d+1})
-                @inbounds TP[ind] = f(TP[ind],T[sumc+offset])
+                @inbounds R[ind] = α*T[sumc+offset]
                 ind += 1
             end)
 
-    return TP
+    return tensor(R)
   end
 end
-function Base.permutedims!(TP::DenseTensor{<:Number,0},
-                           T::DenseTensor{<:Number,0},
-                           perm,
-                           f::Function)
-  TP[] = f(TP[],T[])
-  return TP
+
+@generated function addpermutedims!(RT::DenseTensor{<:Number,N},
+                                    TT::DenseTensor{<:Number,N},
+                                    perm,
+                                    α::Number,β::Number) where {N}
+  quote
+    R = array(RT)
+    T = array(TT)
+    Base.checkdims_perm(R, T, perm)
+
+    #calculates all the strides
+    native_strides = Base.size_to_strides(1, size(T)...)
+    strides_1 = 0
+    @nexprs $N d->(strides_{d+1} = native_strides[perm[d]])
+
+    #Creates offset, because indexing starts at 1
+    offset = 1 - sum(@ntuple $N d->strides_{d+1})
+
+    ind = 1
+    @nexprs 1 d->(counts_{$N+1} = strides_{$N+1}) # a trick to set counts_($N+1)
+    @nloops($N, i, R,
+            d->(counts_d = strides_d), # PRE
+            d->(counts_{d+1} += strides_{d+1}), # POST
+            begin # BODY
+                sumc = sum(@ntuple $N d->counts_{d+1})
+                @inbounds R[ind] = α*R[ind]+β*T[sumc+offset]
+                ind += 1
+            end)
+
+    return tensor(R)
+  end
 end
+
+#function Base.permutedims!(TP::DenseTensor{<:Number,0},
+#                           T::DenseTensor{<:Number,0},
+#                           perm,
+#                           f::Function)
+#  TP[] = f(TP[],T[])
+#  return TP
+#end
 
 function outer!(R::DenseTensor,
                 T1::DenseTensor,
@@ -265,10 +361,24 @@ function contract!!(R::Tensor{<:Number,NR},
     # TODO: replace with an add! function?
     # What about doing `R .= T1[] .* PermutedDimsArray(T2,perm)`?
     perm = getperm(labelsR,labelsT2)
-    R = permutedims!!(R,T2,perm,(r,t2)->T1[]*t2)
+    if !is_trivial_permutation(perm)
+      R = permutedims!!(R,T2,perm,0,T1[])
+    else
+      R = mul!!(R,T1[],T2)
+    end
   elseif N2==0
     perm = getperm(labelsR,labelsT1)
-    R = permutedims!!(R,T1,perm,(r,t1)->T2[]*t1)
+    if !is_trivial_permutation(perm)
+      R = permutedims!!(R,T1,perm,0,T2[])
+    else
+      R = mul!!(R,T1,T2[])
+    end
+  elseif NR==0
+    perm = getperm(labelsT1,labelsT2)
+    if !is_trivial_permutation(perm)
+      T2 = permutedims(T2,perm)
+    end
+    res = array(T1) .* array(T2)
   elseif N1+N2==NR
     # TODO: permute T1 and T2 appropriately first (can be more efficient
     # then permuting the result of T1⊗T2)

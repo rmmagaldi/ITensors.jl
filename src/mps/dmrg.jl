@@ -21,27 +21,36 @@ function dmrg(H::MPO,
     sw_time = @elapsed begin
 
     for (b,ha) in sweepnext(N)
+@timeit GLOBAL_TIMER "position!" begin
       position!(PH,psi,b)
+end
 
       phi = psi[b]*psi[b+1]
 
+@timeit GLOBAL_TIMER "davidson" begin
       energy,phi = davidson(PH,phi;kwargs...)
+end
 
       dir = ha==1 ? "fromleft" : "fromright"
+@timeit GLOBAL_TIMER "replaceBond!" begin
       replaceBond!(psi,b,phi;
                    maxdim=maxdim(sweeps,sw),
                    mindim=mindim(sweeps,sw),
                    cutoff=cutoff(sweeps,sw),
                    dir=dir,
                    which_factorization=which_factorization)
+end
 
+@timeit GLOBAL_TIMER "measure!" begin
       measure!(obs;energy=energy,
                    psi=psi,
                    bond=b,
                    sweep=sw,
                    half_sweep=ha,
                    quiet=quiet)
-    end
+end
+
+      end
     end
     if !quiet
       @printf("After sweep %d energy=%.12f maxLinkDim=%d time=%.3f\n",sw,energy,maxLinkDim(psi),sw_time)

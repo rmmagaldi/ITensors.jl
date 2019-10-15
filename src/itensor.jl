@@ -44,12 +44,20 @@ setstore!(T::ITensor,st::TensorStorage) = (T.store = st)
 # Dense ITensor constructors
 #
 
-ITensor(T::Tensor) = ITensor(store(T),inds(T))
-ITensor{N}(T::Tensor{<:Number,N}) where {N} = ITensor(store(T),inds(T))
+ITensor(T::Tensor{<:Number,N}) where {N} = 
+  ITensor{N}(store(T),inds(T))
+ITensor{N}(T::Tensor{<:Number,N}) where {N} = 
+  ITensor{N}(store(T),inds(T))
 
-ITensor() = ITensor(Dense{Nothing}(),IndexSet())
-ITensor(is::IndexSet) = ITensor(Float64,is...)
-ITensor(inds::Index...) = ITensor(IndexSet(inds...))
+ITensor() = ITensor{0}()
+ITensor(is::IndexSet{N}) where {N} = ITensor{N}(is)
+ITensor(inds::Vararg{Index,N}) where {N} = ITensor{N}(inds...)
+
+ITensor{0}() = ITensor{0}(Dense{Nothing}(),IndexSet())
+ITensor{N}(is::IndexSet{N}) where {N} = 
+  ITensor(Float64,is)
+ITensor{N}(inds::Vararg{Index,N}) where {N} = 
+  ITensor{N}(IndexSet{N}(inds...))
 
 # Convert the ITensor to a Tensor that shares the same
 # data and indices as the ITensor
@@ -58,14 +66,14 @@ ITensor(inds::Index...) = ITensor(IndexSet(inds...))
 tensor(A::ITensor) = Tensor(store(A),inds(A))
 
 function ITensor(::Type{T},
-                 inds::IndexSet) where {T<:Number}
-  return ITensor(Dense{float(T)}(zeros(float(T),dim(inds))),inds)
+                 inds::IndexSet{N}) where {T<:Number,N}
+  return ITensor{N}(Dense{float(T)}(zeros(float(T),dim(inds))),inds)
 end
 ITensor(::Type{T},inds::Index...) where {T<:Number} = ITensor(T,IndexSet(inds...))
 
 function ITensor(::UndefInitializer,
-                 inds::IndexSet)
-  return ITensor(Dense{Float64}(Vector{Float64}(undef,dim(inds))),inds)
+                 inds::IndexSet{N}) where {N}
+  return ITensor{N}(Dense{Float64}(Vector{Float64}(undef,dim(inds))),inds)
 end
 ITensor(x::UndefInitializer,inds::Index...) = ITensor(x,IndexSet(inds...))
 
@@ -250,7 +258,8 @@ Base.size(A::ITensor{N}, d::Int) where {N} = d in 1:N ? dim(inds(A)[d]) :
 
 isNull(T::ITensor) = (eltype(T) === Nothing)
 
-Base.copy(T::ITensor{N}) where {N} = ITensor{N}(copy(tensor(T)))
+Base.copy(T::ITensor{N}) where {N} = 
+  ITensor{N}(copy(tensor(T)))
 
 # TODO: make versions where the element type can be specified
 # Should this be called `array`? (Version that makes a view, if dense)
@@ -384,8 +393,8 @@ end
 #  return scalar(tensor(store(T),inds(T)))
 #end
 
-function Random.randn!(T::ITensor)
-  return randn!(tensor(T))
+function Random.randn!(T::ITensor{N}) where {N}
+  return ITensor{N}(randn!(tensor(T)))
 end
 
 const Indices = Union{IndexSet,Tuple{Vararg{Index}}}
@@ -458,7 +467,7 @@ function Base.:*(A::ITensor,B::ITensor)
   return C
 end
 
-LinearAlgebra.dot(A::ITensor,B::ITensor) = (dag(A)*B)[]
+LinearAlgebra.dot(A::ITensor,B::ITensor)::Number = (dag(A)*B)[]
 
 """
     exp(A::ITensor, Lis::IndexSet; hermitian = false)
@@ -521,7 +530,7 @@ B .+= α .* A
 add!(R::ITensor,T::ITensor) = add!(R,1,T)
 
 function add!(R::ITensor{N},α::Number,T::ITensor{N}) where {N}
-  return apply!(R,T,(r,t)->r+α*t)
+  return apply!(R,T,1.0,α)
 end
 
 """
@@ -533,16 +542,18 @@ A .= α .* A .+ β .* B
 ```
 """
 function add!(R::ITensor{N},αr::Number,αt::Number,T::ITensor{N}) where {N}
-  return apply!(R,T,(r,t)->αr*r+αt*t)
+  return apply!(R,T,αr,αt)
 end
 
-function apply!(R::ITensor{N},T::ITensor{N},f::Function) where {N}
+function apply!(R::ITensor{N},T::ITensor{N},
+                α::Number=0.0,β::Number=1.0) where {N}
   perm = getperm(inds(R),inds(T))
   TR,TT = tensor(R),tensor(T)
 
   # TODO: Include type promotion from α
   TR = convert(promote_type(typeof(TR),typeof(TT)),TR)
-  TR = permutedims!!(TR,TT,perm,f)
+
+  TR = permutedims!!(TR,TT,perm,α,β)
 
   setstore!(R,store(TR))
   setinds!(R,inds(TR))

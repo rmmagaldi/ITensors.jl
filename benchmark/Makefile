@@ -1,13 +1,13 @@
 LIBRARY_DIR=$(HOME)/software/itensor
 
 
-ifdef app
-APP=$(app)
-else
+#ifdef app
+#APP=$(app)
+#else
 APP=mult
-APP=dmrg
-APP=2ddmrg
-endif
+#APP=dmrg
+#APP=2ddmrg
+#endif
 
 HEADERS=
 

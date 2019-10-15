@@ -1,8 +1,8 @@
-using ITensors
+using Tensors
 
 function main()
-  Ny = 6
-  Nx = 12
+  Ny = 2
+  Nx = 50
 
   N = Nx*Ny
 
@@ -24,7 +24,7 @@ function main()
 
   sweeps = Sweeps(10)
   maxdim!(sweeps,10,20,100,100,200,400,800)
-  cutoff!(sweeps,1E-8)
+  cutoff!(sweeps,1E-10)
   @show sweeps
 
   energy,psi = dmrg(H,psi0,sweeps)

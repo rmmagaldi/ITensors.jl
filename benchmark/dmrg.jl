@@ -1,11 +1,11 @@
-using ITensors
+using Tensors
 using Printf
 #using Logging
 ##Set global logging level to Debug to show timers
 #global_logger(SimpleLogger(stdout, Logging.Debug))
 
 function main()
-  N = 100
+  N = 10
   sites = spinOneSites(N)
 
   ampo = AutoMPO(sites)
@@ -22,6 +22,10 @@ function main()
   maxdim!(sweeps,10,20,100,100,200)
   cutoff!(sweeps,1E-11)
   @show sweeps
+
+  energy,psi = dmrg(H,psi,sweeps,maxiter=2)
+
+  reset_timer!(Tensors.GLOBAL_TIMER)
 
   energy,psi = @time dmrg(H,psi,sweeps,maxiter=2)
   @printf "Final energy = %.12f\n" energy
