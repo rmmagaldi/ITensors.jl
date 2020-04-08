@@ -610,7 +610,11 @@ function _contract!(CT::DenseTensor{El,NC},
     end
   end
 
-  BLAS.gemm!(tA,tB,El(α),AM,BM,El(β),CM)
+  if length(AM) > 4096 && length(BM) > 4096 && length(CM) > 4096
+      CM = CUBLASMG.mg_gemm!(tA,tB,El(α),AM,BM,El(β),CM,devs=devs[], dev_rows=dev_rows[],dev_cols=dev_cols[])
+  else
+      BLAS.gemm!(tA,tB,El(α),AM,BM,El(β),CM)
+  end
 
   if props.permuteC
     permutedims!(C,reshape(CM,props.newCrange...),

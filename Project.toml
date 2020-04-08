@@ -4,6 +4,11 @@ authors = ["mfishman <mfishman@caltech.edu>"]
 version = "0.1.0"
 
 [deps]
+CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
+CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
+CUDAnative = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
+CuArrays = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
+GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

@@ -4,7 +4,9 @@ using Random
 using LinearAlgebra
 using StaticArrays
 using HDF5
+using CuArrays 
 
+import ..ITensors: devs, dev_rows, dev_cols      
 #####################################
 # DenseTensor and DiagTensor
 #

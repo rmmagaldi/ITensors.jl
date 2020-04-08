@@ -1,11 +1,6 @@
 module ITensors
 
 #####################################
-# NDTensors
-#
-include("../NDTensors/src/NDTensors.jl")
-
-#####################################
 # External packages
 #
 using HDF5
@@ -16,7 +11,21 @@ using Printf
 using Random
 using StaticArrays
 using TimerOutputs
+using CUDAdrv
+using CuArrays
 
+const devs = Ref{Vector{CUDAdrv.CuDevice}}()
+const dev_rows = Ref{Int}(0)
+const dev_cols = Ref{Int}(0)
+function __init__()
+    voltas    = filter(dev->occursin("V100", CUDAdrv.name(dev)), collect(CUDAdrv.devices()))
+    pascals    = filter(dev->occursin("P100", CUDAdrv.name(dev)), collect(CUDAdrv.devices()))
+    devs[] = voltas[1:4]
+    #devs[] = pascals[1:2]
+    CUBLASMG.cublasMgDeviceSelect(CUBLASMG.mg_handle(), length(devs[]), devs[])
+    dev_rows[] = 2
+    dev_cols[] = 2
+end
 #####################################
 # Global Variables
 #
