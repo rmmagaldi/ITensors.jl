@@ -4,9 +4,21 @@ using Random
 using LinearAlgebra
 using StaticArrays
 using HDF5
+using CUDAdrv
 using CuArrays 
 
-import ..ITensors: devs, dev_rows, dev_cols      
+const devs = Ref{Vector{CUDAdrv.CuDevice}}()
+const dev_rows = Ref{Int}(0)
+const dev_cols = Ref{Int}(0)
+function __init__()
+    voltas    = filter(dev->occursin("V100", CUDAdrv.name(dev)), collect(CUDAdrv.devices()))
+    pascals    = filter(dev->occursin("P100", CUDAdrv.name(dev)), collect(CUDAdrv.devices()))
+    devs[] = voltas[1:4]
+    #devs[] = pascals[1:2]
+    CUBLASMG.cublasMgDeviceSelect(CUBLASMG.mg_handle(), length(devs[]), devs[])
+    dev_rows[] = 2
+    dev_cols[] = 2
+end
 #####################################
 # DenseTensor and DiagTensor
 #
