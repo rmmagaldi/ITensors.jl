@@ -1496,18 +1496,18 @@ end
 
 function Base.map!(f::Function,
                    R::ITensor{N},
-                   T1::ITensor{N},
-                   T2::ITensor{N}) where {N}
-  R !== T1 && error("`map!(f, R, T1, T2)` only supports `R === T1` right now")
-  perm = NDTensors.getperm(inds(R),inds(T2))
-  TR,TT = tensor(R),tensor(T2)
+                   Ts::ITensor{N}...) where {N}
+  #R !== T1 && error("`map!(f, R, T1, T2)` only supports `R === T1` right now")
+  perms = NDTensors.getperm.(Ref(inds(R)), inds.(Ts))
+  RT = tensor(R)
+  TTs = PermutedDims.(tensor.(Ts), perms)
 
   # TODO: Include type promotion from α
-  TR = convert(promote_type(typeof(TR),typeof(TT)),TR)
-  TR = permutedims!!(TR,TT,perm,f)
-
-  setstore!(R,store(TR))
-  setinds!(R,inds(TR))
+  #TR = convert(promote_type(typeof(TR),typeof(TT)),TR)
+  #TR = permutedims!!(TR,TT,perm,f)
+  RT = map!!(f, RT, TTs...)
+  setstore!(R, store(RT))
+  setinds!(R, inds(RT))
   return R
 end
 

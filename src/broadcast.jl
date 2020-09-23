@@ -476,16 +476,16 @@ end
 # For B .= f.(A)
 #
 
-function Base.copyto!(R::ITensor,
-                      bc::Broadcasted{ITensorStyle,
-                                      <:Any,
-                                      <:Function,
-                                      <:Tuple{<:ITensor}})
-  f = bc.f
-  T = bc.args[1]
-  map!((r, t) -> f(t), R, R, T)
-  return R
-end
+#function Base.copyto!(R::ITensor,
+#                      bc::Broadcasted{ITensorStyle,
+#                                      <:Any,
+#                                      <:Function,
+#                                      <:Tuple{<:ITensor}})
+#  f = bc.f
+#  T = bc.args[1]
+#  map!((r, t) -> f(t), R, R, T)
+#  return R
+#end
 
 #
 # For B .+= f.(A)
@@ -529,6 +529,19 @@ function Base.copyto!(R::ITensor,
   else
     error("In C .= f.(B) .+ g.(A), C and B or A must be the same ITensor")
   end
+  return R
+end
+
+#
+# R .= f.(A, B, C, ...)
+#
+
+function Base.copyto!(R::ITensor,
+                      bc::Broadcasted{ITensorStyle,
+                                      Nothing,
+                                      <: Function,
+                                      <: Tuple{Vararg{ITensor}}})
+  map!(bc.f, R, bc.args...)
   return R
 end
 
