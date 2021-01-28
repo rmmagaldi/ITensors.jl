@@ -201,11 +201,11 @@ indices.
 To make an ITensor that shares the same storage as the Tensor,
 is the function `itensor(::Tensor)`.
 """
-ITensor(T::Tensor{<:Number,N}) where {N} = ITensor{N}(store(T),
-                                                      inds(T))
+(ITensor(T::Tensor{<:Number,N})::ITensor{N}) where {N} =
+  ITensor{N}(store(T), inds(T))
 
-ITensor{N}(T::Tensor{<:Number,N}) where {N} = ITensor{N}(store(T),
-                                                         inds(T))
+(ITensor{N}(T::Tensor{<:Number, N})::ITensor{N}) where {N} =
+  ITensor{N}(store(T), inds(T))
 
 """
     itensor(::Tensor)
@@ -213,7 +213,8 @@ ITensor{N}(T::Tensor{<:Number,N}) where {N} = ITensor{N}(store(T),
 Make an ITensor that shares the same storage as the Tensor and
 has the same indices.
 """
-itensor(T::Tensor) = itensor(store(T), inds(T))
+(itensor(T::Tensor{<:Number, N})::ITensor{N}) where{N} =
+  itensor(store(T), inds(T))
 
 """
     tensor(::ITensor)
@@ -221,7 +222,8 @@ itensor(T::Tensor) = itensor(store(T), inds(T))
 Convert the ITensor to a Tensor that shares the same
 storage and indices as the ITensor.
 """
-tensor(A::ITensor) = tensor(store(A),inds(A))
+(tensor(A::ITensor{N})::Tensor{<:Number, N}) where {N} =
+  tensor(store(A), inds(A))
 
 """
     ITensor([::Type{ElT} = Float64, ]inds)
@@ -509,9 +511,9 @@ eltype(T::ITensor) = eltype(tensor(T))
 
 The number of indices, `length(inds(A))`.
 """
-order(T::ITensor) = ndims(T)
+order(T::ITensor)::Int = ndims(T)
 
-ndims(::ITensor{N}) where {N} = N
+(ndims(::ITensor{N})::Int) where {N} = N
 
 """
     dim(A::ITensor)
@@ -1299,8 +1301,13 @@ end
   error("cannot subtract ITensors with different numbers of indices")
 
 function _contract(A::ITensor, B::ITensor)
+  NC = length(noncommoninds(A, B))
+  return _contract(Val(NC), A, B)
+end
+
+function _contract(::Val{NC}, A::ITensor, B::ITensor)::ITensor{NC} where {NC}
   (labelsA,labelsB) = compute_contraction_labels(inds(A),inds(B))
-  CT = contract(tensor(A),labelsA,tensor(B),labelsB)
+  CT = contract(Val(NC), tensor(A), labelsA, tensor(B), labelsB)
   C = itensor(CT)
   warnTensorOrder = get_warn_order()
   if !isnothing(warnTensorOrder) > 0 &&
