@@ -29,8 +29,10 @@ IndexSet{Union{}}(())                 = IndexSet{Union{}}(Any[])
 IndexSet{IndexT}(data) where {IndexT} = IndexSet{IndexT}(collect(data))
 
 @eval struct Order{N}
-      (OrderT::Type{ <: Order})() = $(Expr(:new, :OrderT))
-  end
+  (OrderT::Type{ <: Order})() = $(Expr(:new, :OrderT))
+end
+
+order(is::IndexSet) = length(is)
 
 @doc """
    Order{N}
@@ -42,7 +44,10 @@ A value type representing the order of an ITensor.
 Create an instance of the value type Order representing
 the order of an ITensor.
 """
-Order(N) = Order{N}()
+Order(N::Integer) = Order{N}()
+
+# Compile time order of an ITensor or IndexSet
+Order(A) = Order(order(A))
 
 """
     IndexSet(::Function, ::Order{N})
@@ -904,7 +909,7 @@ swapind(is::IndexSet, i1::Index, i2::Index) = swapinds(is, (i1,), (i2,))
 
 removeqns(is::IndexSet) = is
 
-function permute(is1::IndexSet, is2::IndexSet)
+function permute(is1::IndexSet, is2)
   length(is1) != length(is2) && throw(ArgumentError("length of first index set, $(length(is1)) does not match length of second index set, $(length(is2))"))
   perm = NDTensors.getperm(is1, is2)
   return NDTensors.permute(is1, perm)

@@ -649,7 +649,7 @@ A[i => 1, i' => 2] # 2.0, same as: A[i' => 2, i => 1]
 function getindex(T::ITensor, ivs...)
   p = NDTensors.getperm(inds(T), ind.(ivs))
   vals = NDTensors.permute(val.(ivs), p)
-  return T[vals...]::Number
+  return _getindex(T, vals...)::Number
 end
 
 function getindex(T::ITensor) 
